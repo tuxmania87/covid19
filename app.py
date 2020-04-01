@@ -44,6 +44,18 @@ for c in d.columns:
     cdf.columns = ["Deaths"]
     dd[c] = dd[c].join(cdf,how="outer")
     
+df1 =  pd.read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv")
+
+d = df1.drop(["Province/State","Lat","Long"],axis=1)
+d = d.groupby(["Country/Region"]).sum().T.reset_index()
+d = d.set_index(pd.to_datetime(d["index"]))
+d = d.drop(["index"],axis=1)
+
+for c in d.columns:
+    #current data frame = dataframe[country]
+    cdf = pd.DataFrame(d[c])
+    cdf.columns = ["Recovery"]
+    dd[c] = dd[c].join(cdf,how="outer")
 
 for key in dd:
     cdf = dd[key]
@@ -54,25 +66,43 @@ for key in dd:
     cdf["Deaths diff abs"] = cdf["Deaths"].diff()
     cdf["Deaths diff %"] = cdf["Deaths"].pct_change()*100
     cdf["Deaths diff %"] = cdf["Deaths diff %"].round(2)    
+    
+    cdf["Current Infections"] = cdf["Infections"] - cdf["Recovery"]
+    
+    cdf["Current Infections diff abs"] = cdf["Current Infections"].diff()
+    cdf["Current Infections diff %"] = cdf["Current Infections"].pct_change()*100
+    cdf["Current Infections diff %"] = cdf["Current Infections diff %"].round(2)  
+
+    cdf = cdf[["Infections","Infections diff abs","Infections diff %","Deaths","Deaths diff abs","Deaths diff %","Recovery","Current Infections","Current Infections diff abs","Current Infections diff %"]]
+    
+    dd[key] = cdf
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+
+def style_callback(colname):
+    if colname == "index":
+        return { 'border-right':'2px solid black','width':'9%' }
+    elif "Recovery" in colname or "%" in colname:
+        return { 'border-right':'2px solid black' }
 
 def generate_table(dataframe, max_rows=10000):
     dataframe = dataframe.sort_index(ascending=False)
     dataframe = dataframe.reset_index()
+    dataframe["index"] = dataframe["index"].astype(str).str[:10]
     
     return html.Table([
         html.Thead(
-            html.Tr([html.Th(col) for col in dataframe.columns])
+            html.Tr([html.Th(col,style= style_callback(col) ) for col in dataframe.columns])
         ),
         html.Tbody([
             html.Tr([
-                html.Td(dataframe.iloc[i][col]) for col in dataframe.columns
+                html.Td(dataframe.iloc[i][col], style= {'border-right':'2px solid black'} if "%" in col or "Recovery" in col or "index" in col else {}) for col in dataframe.columns
             ]) for i in range(min(len(dataframe), max_rows))
         ])
-    ])
+    ],style={'margin-left':'20%','margin-right':'20%','width':'60%'})
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = app.server
 
 app.layout = html.Div(children=[
     html.Div([
@@ -95,7 +125,7 @@ app.layout = html.Div(children=[
             html.Span('Measures',style={'font-weight':'bold'}),
             dcc.Dropdown(
                 id='val-slider',
-                options=[{'label':i, 'value': i} for i in ['Infections','Deaths']],
+                options=[{'label':i, 'value': i} for i in ['Infections','Deaths', 'Recovery', 'Current Infections']],
                 value="Infections",
             ),
             html.Span('Y-Axis Scale',style={'font-weight':'bold'}),
@@ -124,7 +154,7 @@ app.layout = html.Div(children=[
         ],style={'width': '60%','margin':'auto'}),
         
         html.Div([
-        ],style={'margin':'auto', 'text-align':'center','width':'48%'},id='tabelle'),
+        ],id='tabelle'),
             
         
     ],style={'margin': 'auto','text-align':'center'})
