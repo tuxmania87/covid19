@@ -1,6 +1,7 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 import pandas as pd
 from datetime import datetime
@@ -77,7 +78,8 @@ for key in dd:
     
     dd[key] = cdf
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+#external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+external_stylesheets=[dbc.themes.BOOTSTRAP]
 
 def style_callback(colname):
     if colname == "index":
@@ -99,66 +101,69 @@ def generate_table(dataframe, max_rows=10000):
                 html.Td(dataframe.iloc[i][col], style= {'border-right':'2px solid black'} if "%" in col or "Recovery" in col or "index" in col else {}) for col in dataframe.columns
             ]) for i in range(min(len(dataframe), max_rows))
         ])
-    ],style={'margin-left':'20%','margin-right':'20%','width':'60%'})
+    ],className='table')
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 
-app.layout = html.Div(children=[
-    html.Div([
-        html.H2(children='COVID19 - Custom Dashboard'),
+app.layout = html.Div(className='container',children=[
+    html.H2(children='COVID19 - Custom Dashboard'),
+
+    #html.Div(children='''
+    #    Dash: A web application framework for Python!
+    #'''),
     
-        #html.Div(children='''
-        #    Dash: A web application framework for Python!
-        #'''),
+    html.Div([
+        html.Span('Choose Country',style={'font-weight':'bold'}),
+        dcc.Dropdown(
+            id='drop-countries',
+            options=[{'label':i, 'value': i} for i in dd.keys()],
+            value="Germany",
+        ),
+    ],style={'width': '20%', 'margin': 'auto','margin-bottom':'20px'}),
+    
+    html.Div([
+        html.Span('Measures',style={'font-weight':'bold'}),
+        dcc.Dropdown(
+            id='val-slider',
+            options=[{'label':i, 'value': i} for i in ['Infections','Deaths', 'Recovery', 'Current Infections']],
+            value="Infections",
+        ),
+        html.Span('Y-Axis Scale',style={'font-weight':'bold'}),
+        dcc.RadioItems(
+            id='yaxis-type',
+            options=[{'label': i, 'value': i} for i in ['Linear', 'Log']],
+            value='Linear',
+            labelStyle={'display': 'inline-block'}
+        )
+    ],style={'width': '20%', 'display': 'inline-block'}),
+    html.Div([
+        dcc.Graph(id='timeseries'),
+    #],style={'width': '60%','margin':'auto'}),
+    ],className="container"),
+    
+    html.Div([
+        html.Span('Scale',style={'font-weight':'bold'}),
+        dcc.RadioItems(
+            id='diffscale',
+            options=[{'label': i, 'value': i} for i in ['absolute', 'percentage']],
+            value='absolute',
+            labelStyle={'display': 'inline-block'}
+        )
+    #],style={'width': '48%', 'display': 'inline-block'}),
+    ],className="container"),
+    
+    
+    html.Div([
+        dcc.Graph(id='diffdata'),
+    ],className="container"),
+    
+    html.Div([
+    ],id='tabelle',className='container'),
         
-        html.Div([
-            html.Span('Choose Country',style={'font-weight':'bold'}),
-            dcc.Dropdown(
-                id='drop-countries',
-                options=[{'label':i, 'value': i} for i in dd.keys()],
-                value="Germany",
-            ),
-        ],style={'width': '20%', 'margin': 'auto','margin-bottom':'20px'}),
-        
-        html.Div([
-            html.Span('Measures',style={'font-weight':'bold'}),
-            dcc.Dropdown(
-                id='val-slider',
-                options=[{'label':i, 'value': i} for i in ['Infections','Deaths', 'Recovery', 'Current Infections']],
-                value="Infections",
-            ),
-            html.Span('Y-Axis Scale',style={'font-weight':'bold'}),
-            dcc.RadioItems(
-                id='yaxis-type',
-                options=[{'label': i, 'value': i} for i in ['Linear', 'Log']],
-                value='Linear',
-                labelStyle={'display': 'inline-block'}
-            )
-        ],style={'width': '20%', 'display': 'inline-block'}),
-        html.Div([
-            dcc.Graph(id='timeseries'),
-        ],style={'width': '60%','margin':'auto'}),
-        
-        html.Div([
-            html.Span('Scale',style={'font-weight':'bold'}),
-            dcc.RadioItems(
-                id='diffscale',
-                options=[{'label': i, 'value': i} for i in ['absolute', 'percentage']],
-                value='absolute',
-                labelStyle={'display': 'inline-block'}
-            )
-        ],style={'width': '48%', 'display': 'inline-block'}),
-        html.Div([
-            dcc.Graph(id='diffdata'),
-        ],style={'width': '60%','margin':'auto'}),
-        
-        html.Div([
-        ],id='tabelle'),
-            
-        
-    ],style={'margin': 'auto','text-align':'center'})
-])
+    
+],style={'margin': 'auto','text-align':'center'})
+
 
 @app.callback(
     Output('timeseries','figure'),
@@ -189,16 +194,21 @@ def update_figure(selected_value, yaxis_type, country_val):
 @app.callback(
     Output('diffdata','figure'),
     [Input('diffscale','value'),
-     Input('drop-countries','value')])
-def update_diffs(vala,country_val):
+     Input('drop-countries','value'),
+     Input('val-slider','value')])
+def update_diffs(vala,country_val,selected_value):
     df_ger = dd[country_val]
     df2 = df_ger
     df2 = df2[last28days:]
     
+    measure = selected_value+" diff " + ("abs" if vala == "absolute" else "%")
+    if selected_value == "Recovery":
+        measure = "Infections diff " + ("abs" if vala == "absolute" else "%")
+    
     if vala == "absolute":
-        df2 = df2[["Infections diff abs"]]
+        df2 = df2[[measure]]
     else:
-        df2 = df2[["Infections diff %"]]
+        df2 = df2[[measure]]
     
     return {
         'data': [
@@ -206,7 +216,7 @@ def update_diffs(vala,country_val):
         ],
         'layout': {
             'title': {
-                'text': 'Infections difference to prior day in '+country_val,
+                'text': selected_value+' difference to prior day in '+country_val,
             },
         }
     }
