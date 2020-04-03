@@ -182,8 +182,28 @@ def generate_table(dataframe, max_rows=10000):
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
+app.title = "COVID 19 Custom Dashboard"
+
+
+tabs_styles = {
+    'height': '44px'
+}
+tab_style = {
+    'borderBottom': '1px solid #d6d6d6',
+    'padding': '6px',
+    'fontWeight': 'bold'
+}
+
+tab_selected_style = {
+    'borderTop': '1px solid #d6d6d6',
+    'borderBottom': '1px solid #d6d6d6',
+    'backgroundColor': '#119DFF',
+    'color': 'white',
+    'padding': '6px'
+}
 
 app.layout = html.Div(className='container',children=[
+
     html.H2(children='COVID19 - Custom Dashboard'),
 
     #html.Div(children='''
@@ -195,7 +215,7 @@ app.layout = html.Div(className='container',children=[
         dcc.Dropdown(
             id='drop-countries',
             options=[{'label':i, 'value': i} for i in dd.keys()],
-            value="Germany",
+            value="World",
             multi=True,
         ),
     ],style={'width': '20%', 'margin': 'auto','margin-bottom':'20px'}),
@@ -206,15 +226,19 @@ app.layout = html.Div(className='container',children=[
             id='val-slider',
             options=[{'label':i, 'value': i} for i in ['Infections','Deaths', 'Recovery', 'Current Infections']],
             value="Infections",
+            style={'margin-bottom':'20px'},
         ),
         html.Span('Y-Axis Scale',style={'font-weight':'bold'}),
         dcc.RadioItems(
             id='yaxis-type',
             options=[{'label': i, 'value': i} for i in ['Linear', 'Log']],
             value='Linear',
-            labelStyle={'display': 'inline-block'}
-        )
+            labelStyle={'display': 'block'}
+        ),
+        
     ],style={'width': '20%', 'display': 'inline-block'}),
+    #],style={'width': '20%'}),
+    
     html.Div([
         dcc.Graph(id='timeseries'),
     #],style={'width': '60%','margin':'auto'}),
@@ -226,24 +250,25 @@ app.layout = html.Div(className='container',children=[
             id='diffscale',
             options=[{'label': i, 'value': i} for i in ['absolute', 'percentage']],
             value='absolute',
-            labelStyle={'display': 'inline-block'}
+            labelStyle={'display': 'block'}
         )
     #],style={'width': '48%', 'display': 'inline-block'}),
-    ],className="container"),
+    ],className="container",style={'width':'20%'}),
     
     
     html.Div([
         dcc.Graph(id='diffdata'),
     ],className="container"),
     
-    html.Span('Detailed data of last 14 days of first selected country',
-        style={'font-weight':'bold'}),
-    html.Div([
-    ],id='tabelle',className='table-responsive'),
+    
+    
+    html.Div(dcc.Tabs(id="tabs", value='tab-1'
+        ,style = tabs_styles
+    ),id='tabelle',className='table-responsive'),
         
     html.Div([
         html.A("Data Source: https://github.com/CSSEGISandData/COVID-19",href="https://github.com/CSSEGISandData/COVID-19")
-    ],className="container",style={ 'margin-bottom':'20px'})
+    ],className="container",style={ 'margin-bottom':'20px'}),
     
 ],style={'margin': 'auto','text-align':'center'})
 
@@ -268,11 +293,14 @@ def update_figure(selected_value, yaxis_type, country_val):
             #    'color': colors['text']
             #},
             'yaxis': {
-                'type': 'linear' if yaxis_type == 'Linear' else 'log'
+                'type': 'linear' if yaxis_type == 'Linear' else 'log',
+                'tickformat':'>-,d',
+                #'separators':', '
             },
             'title': {
                 'text': 'Timeline '+selected_value+' of '+ (",".join(country_val)),
             },
+            'hoverformat':'>-,d',
         }
     }
 
@@ -306,20 +334,34 @@ def update_diffs(vala,country_val,selected_value):
             'title': {
                 'text': selected_value+' difference to prior day in '+ (",".join(country_val)),
             },
+            'yaxis': {
+                'tickformat':'>-,d' if vala=="absolute" else '>-,2f',
+            }
         }
     }
  
+#@app.callback(
+#    Output('tabelle','children'),
+#    [Input('drop-countries','value')])
+#def update_table(country_val):
+#
+#    if not isinstance(country_val,list):
+#        country_val = [ country_val ]
+#
+#
+#    df_ger = dd[country_val[0]]
+#    return generate_table(df_ger[last14days:]),
+
+
 @app.callback(
-    Output('tabelle','children'),
+    Output('tabs','children'),
     [Input('drop-countries','value')])
-def update_table(country_val):
+def update_tabs(country_val):
 
     if not isinstance(country_val,list):
         country_val = [ country_val ]
-
-
-    df_ger = dd[country_val[0]]
-    return generate_table(df_ger[last14days:]),
+    
+    return [ dcc.Tab(label=c,children=generate_table(dd[c][last14days:]), style=tab_style, selected_style=tab_selected_style) for c in country_val ]
 
 if __name__ == '__main__':
     app.run_server(debug=True)
